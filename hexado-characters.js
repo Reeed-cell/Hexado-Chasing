@@ -29,6 +29,7 @@
  */
 
 'use strict';
+if (!window.HexEngine) throw new Error('[hexado-characters] hexado-logic.js must load first — window.HexEngine is not defined.');
 const HE = window.HexEngine;
 
 /* ════════════════════════════════════════════════════════════════
