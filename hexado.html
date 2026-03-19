@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hexado Chasing — Engine v1.1</title>
+<style>
+/* ── Reset & base ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body               { width: 100%; height: 100%; overflow: hidden; background: #08080f; }
+#canvas                  { display: block; width: 100vw; height: 100vh; }
+body                     { font-family: 'Courier New', Courier, monospace; }
+
+/* ── HUD root ── */
+#hud {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Title bar ── */
+#hud-title-bar {
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.70);
+  border: 1px solid rgba(255, 195, 40, 0.28);
+  border-radius: 3px;
+  padding: 7px 28px;
+  text-align: center;
+  user-select: none;
+}
+#hud-title-bar .game-title {
+  color: #ffc828;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 5px;
+  margin-bottom: 2px;
+}
+#hud-title-bar .game-sub {
+  color: rgba(255, 200, 40, 0.42);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ── EF intensity bar (above stat boxes) ── */
+#ef-wrap {
+  position: absolute;
+  bottom: 108px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 290px;
+  text-align: center;
+}
+.ef-heading {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 8px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+#ef-track {
+  background: rgba(0, 0, 0, 0.60);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  height: 5px;
+}
+#ef-fill {
+  height: 100%;
+  border-radius: 2px;
+  width: 12%;
+  background: #00cc44;
+  transition: width 0.45s ease, background 0.45s ease;
+}
+#ef-label {
+  color: #ffc828;
+  font-size: 10px;
+  letter-spacing: 2px;
+  margin-top: 5px;
+}
+
+/* ── Stat boxes row ── */
+#hud-stats {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+}
+.sbox {
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 4px;
+  padding: 9px 16px;
+  text-align: center;
+  min-width: 84px;
+}
+.slabel { color: rgba(255, 255, 255, 0.35); font-size: 8px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 3px; }
+.sval   { color: #ffffff; font-size: 22px; font-weight: bold; line-height: 1; }
+.sunit  { color: rgba(255, 255, 255, 0.30); font-size: 8px; letter-spacing: 1px; }
+
+/* ── Controls hint (bottom-right) ── */
+#hint {
+  position: absolute;
+  bottom: 24px;
+  right: 22px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 4px;
+  padding: 10px 14px;
+  color: rgba(255, 255, 255, 0.32);
+  font-size: 9px;
+  letter-spacing: 1px;
+  line-height: 1.95;
+  user-select: none;
+}
+
+/* ── Minimap (top-right) ── */
+#minimap {
+  position: absolute;
+  top: 75px;
+  right: 20px;
+  width: 110px;
+  height: 110px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+/* ── Proximity danger flash ── */
+#alert {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  font-weight: bold;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+  white-space: nowrap;
+  color: #ff2222;
+  text-shadow: 0 0 22px #ff2222;
+}
+
+/* ── Loading screen ── */
+#loader {
+  position: fixed; inset: 0;
+  background: #06060c;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 99;
+  transition: opacity 0.8s ease;
+}
+#loader .l-title  { color: #ffc828; font-size: 26px; font-weight: bold; letter-spacing: 7px; margin-bottom: 10px; }
+#loader .l-sub    { color: rgba(255, 200, 40, 0.45); font-size: 9px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 40px; }
+#loader .l-bar-bg { width: 240px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+#loader .l-bar    { height: 100%; width: 0%; background: #ffc828; border-radius: 2px; transition: width 0.4s ease; }
+#loader .l-status { color: rgba(255,255,255,0.3); font-size: 9px; letter-spacing: 2px; margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ LOADING SCREEN ═══════════ -->
+<div id="loader">
+  <div class="l-title">HEXADO</div>
+  <div class="l-sub">Chasing Engine · v1.1</div>
+  <div class="l-bar-bg"><div class="l-bar" id="load-bar"></div></div>
+  <div class="l-status" id="load-status">Initialising…</div>
+</div>
+
+<!-- ═══════════ 3D CANVAS ═══════════ -->
+<canvas id="canvas"></canvas>
+
+<!-- ═══════════ HUD ═══════════ -->
+<div id="hud">
+
+  <!-- Title bar -->
+  <div id="hud-title-bar">
+    <div class="game-title">HEXADO CHASING</div>
+    <div class="game-sub">Engine v1.1 &nbsp;·&nbsp; All geometry procedural &nbsp;·&nbsp; Three.js r128</div>
+  </div>
+
+  <!-- EF intensity bar -->
+  <div id="ef-wrap">
+    <div class="ef-heading">Storm Intensity</div>
+    <div id="ef-track"><div id="ef-fill"></div></div>
+    <div id="ef-label">EF0 · 65 km/h</div>
+  </div>
+
+  <!-- Stat boxes -->
+  <div id="hud-stats">
+    <div class="sbox">
+      <div class="slabel">Speed</div>
+      <div class="sval" id="s-speed">0</div>
+      <div class="sunit">km/h</div>
+    </div>
+    <div class="sbox">
+      <div class="slabel">Distance</div>
+      <div class="sval" id="s-dist">0</div>
+      <div class="sunit">m</div>
+    </div>
+    <div class="sbox">
+      <div class="slabel">Proximity</div>
+      <div class="sval" id="s-prox">---</div>
+      <div class="sunit">m</div>
+    </div>
+    <div class="sbox">
+      <div class="slabel">Score</div>
+      <div class="sval" id="s-score">0</div>
+      <div class="sunit">pts</div>
+    </div>
+  </div>
+
+  <!-- Controls hint -->
+  <div id="hint">
+    W / ↑ &nbsp;&nbsp;&nbsp;Accelerate<br>
+    S / ↓ &nbsp;&nbsp;&nbsp;Brake / Reverse<br>
+    A / ← &nbsp;&nbsp;&nbsp;Turn left<br>
+    D / → &nbsp;&nbsp;&nbsp;Turn right
+  </div>
+
+  <!-- Proximity alert -->
+  <div id="alert"></div>
+
+  <!-- Minimap -->
+  <div id="minimap">
+    <canvas id="mm-canvas" width="110" height="110"></canvas>
+  </div>
+
+</div>
+
+<!-- ═══════════ SCRIPTS ═══════════
+     Load order is critical:
+       1. Three.js    — global THREE object
+       2. Logic       — HE.EventBus, Physics, Storm, VortexMath, Data
+       3. Render      — HE.TerrainGen, EnvironmentGen, AssetFactory, Particles, HUD
+       4. Characters  — HE.VehicleFactory, HE.FPVCamera (vehicle · driver · camera)
+       5. This boot   — HexadoEngine orchestrator (inline, last)
+     ═══════════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="hexado-logic.js"></script>
+<script src="hexado-render.js"></script>
+<script src="hexado-characters.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   HexadoEngine — Main Orchestrator
+   Wires all three layers together and runs the game loop.
+   Exposed as window.hexado for dev console inspection.
+   ════════════════════════════════════════════════════════════ */
+class HexadoEngine {
+  constructor() {
+    const HE = window.HexEngine;
+
+    /* — Core — */
+    this.bus = new HE.EventBus();
+
+    /* — Data layer — */
+    this.stats    = new HE.PlayerStats();
+    this.stormTrk = new HE.StormTracker();
+    this.logger   = new HE.SessionLogger();
+
+    /* — Logic layer — */
+    this.vortex   = new HE.VortexMath();
+    this.physics  = new HE.PhysicsEngine(this.bus);
+    this.stormSys = new HE.StormSystem(this.bus);
+
+    /* — HUD (created in init() after render layer is confirmed loaded) — */
+    this.hud = null;
+
+    this._lastT    = 0;
+    this._loadBar  = document.getElementById('load-bar');
+    this._loadTxt  = document.getElementById('load-status');
+    this._loader   = document.getElementById('loader');
+  }
+
+  /* ── Async init so we can update the loading bar ── */
+  async init() {
+    this._progress(5, 'WebGL renderer…');
+    await this._tick();
+
+    // ── WebGL Renderer
+    const canvas    = document.getElementById('canvas');
+    this.renderer   = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setClearColor(0x10141e);
+
+    // ── Scene
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x10141e);
+    this.scene.fog = new THREE.FogExp2(0x10141e, 0.0058);
+
+    // ── Camera  (FOV + near set by FPVCamera constructor)
+    this.camera = new THREE.PerspectiveCamera(64, window.innerWidth / window.innerHeight, 0.2, 700);
+    this.camera.position.set(0, 7, -14);
+
+    // ── Lighting
+    const ambient = new THREE.AmbientLight(0x1e2d48, 1.2);
+    this.scene.add(ambient);
+
+    const sun = new THREE.DirectionalLight(0xffd0a0, 0.75);
+    sun.position.set(55, 90, 35);
+    this.scene.add(sun);
+
+    const fillLight = new THREE.DirectionalLight(0x3044aa, 0.25); // cool sky fill
+    fillLight.position.set(-40, 60, -60);
+    this.scene.add(fillLight);
+
+    // Storm point light — follows tornado, tints surroundings purple-green
+    this.stormLight = new THREE.PointLight(0x5566aa, 1.8, 110, 1.4);
+    this.scene.add(this.stormLight);
+
+    // Lightning fill — spikes briefly on random intervals
+    this.fillFlash = new THREE.PointLight(0xaaddff, 0, 220, 1);
+    this.fillFlash.position.set(0, 38, 0);
+    this.scene.add(this.fillFlash);
+
+    this._progress(20, 'Generating terrain…');
+    await this._tick();
+
+    // ── Terrain (smooth plains — no hexagons)
+    const HE = window.HexEngine;
+    HE.TerrainGen.generate(this.scene);
+    this.heightAt = (x, z) => HE.TerrainGen.heightAt(x, z);
+
+    this._progress(45, 'Building environment…');
+    await this._tick();
+
+    // ── Environment props (road, trees, buildings, poles, etc.)
+    HE.EnvironmentGen.build(this.scene);
+
+    this._progress(70, 'Spawning vehicle & character…');
+    await this._tick();
+
+    // ── Player vehicle (improved truck from VehicleFactory)
+    this.vehicle = HE.VehicleFactory.createVehicle();
+    this.scene.add(this.vehicle);
+    this.physics.pos.set(0, 1.5, 78);
+
+    // ── Cockpit interior (child of vehicle — inherits position/rotation/scale)
+    this.cockpit = HE.VehicleFactory.createCockpit();
+    this.vehicle.add(this.cockpit);
+
+    // ── Driver character (child of vehicle — visible through windows)
+    this.driver = HE.VehicleFactory.createDriver();
+    this.vehicle.add(this.driver);
+
+    // ── First-person camera controller
+    this.fpv = new HE.FPVCamera(this.camera);
+
+    // ── Tornado mesh
+    this.tornadoMesh = HE.AssetFactory.createTornadoMesh();
+    this.scene.add(this.tornadoMesh);
+
+    this._progress(85, 'Particle systems…');
+    await this._tick();
+
+    // ── Particles
+    this.particles = new HE.ParticleEngine(this.scene);
+
+    // ── HUD  (must be created AFTER render layer scripts are confirmed loaded)
+    this.hud = new HE.HUD();
+
+    this._progress(95, 'Wiring input & events…');
+    await this._tick();
+
+    // ── Keyboard input
+    this.physics.bindKeys();
+
+    // ── EventBus subscriptions
+    this.bus.on('STORM_UPDATE', ({ pos, intensity }) => {
+      this.stormTrk.update(0.016, intensity, pos);
+      this.stormLight.position.set(pos.x, 6, pos.z);
+      this.stormLight.intensity = 0.5 + intensity * 3.0;
+    });
+    this.bus.on('PLAYER_MOVE', ({ pos, speed }) => {
+      this.logger.log('MOVE', { x: pos.x.toFixed(1), z: pos.z.toFixed(1), v: speed.toFixed(1) });
+    });
+
+    // ── Window resize
+    window.addEventListener('resize', () => {
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    this._progress(100, 'Ready.');
+    await this._tick();
+    this.logger.log('ENGINE_INIT', { build: 'v1.1' });
+
+    // Dismiss loader
+    await new Promise(r => setTimeout(r, 420));
+    this._loader.style.opacity = '0';
+    await new Promise(r => setTimeout(r, 820));
+    this._loader.style.display = 'none';
+  }
+
+  start() {
+    this._lastT = performance.now();
+    this._loop(this._lastT);
+  }
+
+  /* ── Main game loop ── */
+  _loop(now) {
+    requestAnimationFrame(t => this._loop(t));
+    const dt = Math.min((now - this._lastT) * 0.001, 0.05);
+    this._lastT = now;
+
+    /* ════ LOGIC LAYER ════ */
+    this.stormSys.update(dt);
+    this.physics.update(dt, this.heightAt);
+
+    const sp = this.stormSys.pos;
+    const dx = this.physics.pos.x - sp.x;
+    const dz = this.physics.pos.z - sp.z;
+    this.vortex.setIntensity(this.stormTrk.intensity);
+    const wind = this.vortex.worldWind(dx, dz);
+    this.physics.applyWind(wind.x, wind.z, this.stormTrk.intensity);
+
+    /* ════ RENDERING LAYER ════ */
+    // Tornado mesh
+    const torH = this.heightAt(sp.x, sp.z);
+    this.tornadoMesh.position.set(sp.x, torH, sp.z);
+    this.tornadoMesh.rotation.y += dt * (1.0 + this.stormTrk.intensity * 3.4);
+    const ts = 0.55 + this.stormTrk.intensity * 1.5;
+    this.tornadoMesh.scale.set(ts, 0.65 + this.stormTrk.intensity * 0.9, ts);
+
+    // Particles
+    this.particles.update(dt, sp, this.vortex, this.stormTrk.intensity);
+
+    // Vehicle mesh
+    this.vehicle.position.copy(this.physics.pos);
+    this.vehicle.rotation.y = this.physics.heading;
+
+    // ── FPV Camera — driver's eye perspective
+    this.fpv.update(dt, this.physics);
+    this.fpv.animateWheel(dt, this.cockpit.steeringWheel, this.physics.keys);
+    this.fpv.animateNeedle(this.cockpit.speedNeedle, this.physics.speedKmh);
+
+    // Sky + fog darken with storm intensity
+    const i    = this.stormTrk.intensity;
+    const skyR = 0.062 + i * 0.055;
+    const skyG = 0.078 + i * 0.018;
+    const skyB = 0.118 + i * 0.035;
+    this.scene.background.setRGB(skyR, skyG, skyB);
+    this.scene.fog.color.setRGB(skyR, skyG, skyB);
+
+    // Lightning spike (probability scales with storm intensity)
+    if (Math.random() < i * 0.014) {
+      this.fillFlash.intensity = 1.6 + Math.random() * 2.2;
+      this.fillFlash.position.set(
+        sp.x + (Math.random() - 0.5) * 50,
+        38,
+        sp.z + (Math.random() - 0.5) * 50
+      );
+      setTimeout(() => { this.fillFlash.intensity = 0; }, 70 + Math.random() * 130);
+      this.logger.log('LIGHTNING', {});
+    }
+
+    /* ════ DATA LAYER ════ */
+    const proximity = Math.sqrt(
+      (this.physics.pos.x - sp.x) ** 2 +
+      (this.physics.pos.z - sp.z) ** 2
+    );
+    this.stats.update(dt, this.physics.speedKmh, this.physics.distDelta, proximity);
+
+    /* ════ HUD TICK ════ */
+    this.hud.update(this.stats, this.stormTrk, this.physics.pos);
+
+    /* ════ RENDER ════ */
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  /* ── Loading bar helpers ── */
+  _progress(pct, msg) {
+    this._loadBar.style.width = pct + '%';
+    this._loadTxt.textContent = msg;
+  }
+  _tick() { return new Promise(r => requestAnimationFrame(r)); }
+}
+
+/* ── Boot ── */
+window.addEventListener('load', async () => {
+  try {
+    const engine = new HexadoEngine();
+    await engine.init();
+    engine.start();
+    window.hexado = engine;
+    console.log('%c[HexadoEngine v1.2] Ready', 'color:#ffc828;font-weight:bold');
+    console.log('  Logic      → hexado-logic.js       (EventBus · Physics · Storm · VortexMath · Data)');
+    console.log('  Render     → hexado-render.js       (Terrain · Environment · AssetFactory · Particles · HUD)');
+    console.log('  Characters → hexado-characters.js  (VehicleFactory · FPVCamera · Driver)');
+    console.log('  Boot       → hexado.html            (Orchestrator · RAF loop)');
+    console.log('  Debug      → window.hexado');
+  } catch (err) {
+    document.body.innerHTML = `
+      <div style="color:#ff4444;font-family:monospace;padding:44px;font-size:13px;background:#06060c;min-height:100vh">
+        <b style="color:#ff6644;font-size:16px">[HexadoEngine] Init error</b><br><br>
+        ${err.message}<br><br>
+        <pre style="opacity:0.55;font-size:11px">${err.stack}</pre>
+        <br>
+        <span style="opacity:0.4;font-size:11px">
+          Make sure hexado-logic.js and hexado-render.js are in the same folder as this file.
+        </span>
+      </div>`;
+    console.error('[HexadoEngine] Init failed:', err);
+  }
+});
+</script>
+</body>
+</html>
