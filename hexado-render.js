@@ -13,8 +13,7 @@
  */
 
 'use strict';
-if (!window.HexEngine) throw new Error('[hexado-render] hexado-logic.js must load first — window.HexEngine is not defined.');
-const HE = window.HexEngine;
+/* HE is declared by hexado-logic.js — do not redeclare */
 
 /* ════════════════════════════════════════════════════════════
    TERRAIN — smooth Oklahoma plains
