@@ -242,10 +242,14 @@ body                     { font-family: 'Courier New', Courier, monospace; }
        4. Characters  — HE.VehicleFactory, HE.FPVCamera (vehicle · driver · camera)
        5. This boot   — HexadoEngine orchestrator (inline, last)
      ═══════════════════════════════ -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="hexado-logic.js"></script>
-<script src="hexado-render.js"></script>
-<script src="hexado-characters.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
+  onerror="window._scriptErr='three.min.js (CDN) failed to load'"></script>
+<script src="./hexado-logic.js"
+  onerror="window._scriptErr='hexado-logic.js failed to load — check it is in the same folder as index.html'"></script>
+<script src="./hexado-render.js"
+  onerror="window._scriptErr='hexado-render.js failed to load — check it is in the same folder as index.html'"></script>
+<script src="./hexado-characters.js"
+  onerror="window._scriptErr='hexado-characters.js failed to load — check it is in the same folder as index.html'"></script>
 
 <script>
 /* ════════════════════════════════════════════════════════════
@@ -281,6 +285,16 @@ class HexadoEngine {
 
   /* ── Async init so we can update the loading bar ── */
   async init() {
+    // ── Guard: catch script-load failures before anything else
+    if (window._scriptErr) throw new Error(window._scriptErr);
+    if (typeof THREE === 'undefined')
+      throw new Error('three.min.js did not load — check your internet connection or CDN block.');
+    const _HEcheck = window.HexEngine || {};
+    if (!_HEcheck.TerrainGen)
+      throw new Error('hexado-render.js did not load or threw during parse.\nOpen DevTools → Network tab → confirm hexado-render.js returns HTTP 200.\nAlso check DevTools → Console for any syntax errors in that file.');
+    if (!_HEcheck.VehicleFactory)
+      throw new Error('hexado-characters.js did not load or threw during parse.\nOpen DevTools → Network tab → confirm hexado-characters.js returns HTTP 200.');
+
     this._progress(5, 'WebGL renderer…');
     await this._tick();
 
