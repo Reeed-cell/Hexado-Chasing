@@ -16,7 +16,7 @@
 
 'use strict';
 window.HexEngine = window.HexEngine || {};
-const HE = window.HexEngine;
+var HE = window.HexEngine;
 
 /* ════════════════════════════════════════════════════════════
    CORE — EventBus

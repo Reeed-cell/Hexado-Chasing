@@ -14,7 +14,7 @@
  */
 
 'use strict';
-var HE = window.HexEngine;
+// HE = window.HexEngine is declared as a global var in hexado-logic.js
 
 /* ════════════════════════════════════════════════════════════
    TERRAIN — smooth Oklahoma plains
