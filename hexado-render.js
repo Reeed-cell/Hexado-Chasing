@@ -14,7 +14,7 @@
  */
 
 'use strict';
-const HE = window.HexEngine;
+var HE = window.HexEngine;
 
 /* ════════════════════════════════════════════════════════════
    TERRAIN — smooth Oklahoma plains

@@ -24,7 +24,7 @@
  */
 
 'use strict';
-const HE = window.HexEngine;
+var HE = window.HexEngine;
 
 /* ════════════════════════════════════════════════════════════════
    VEHICLE FACTORY
